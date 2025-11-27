@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from ask.schemas import AskRequest
-from ask.service import run_conversation_with_gemini
+from ask.services import run_conversation_with_gemini
 
 
 router = APIRouter()

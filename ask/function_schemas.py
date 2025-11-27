@@ -2,7 +2,6 @@ from typing import Any, Dict, List
 
 
 def gemini_function_declarations() -> List[Dict[str, Any]]:
-    # Gemini expects a list of function_declarations (no 'type': 'function' wrapper)
     return [
         {
             "name": "search_recalls",

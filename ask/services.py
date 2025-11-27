@@ -5,8 +5,11 @@ import google.generativeai as genai
 from google.ai.generativelanguage_v1beta.types import content as glm_content
 
 from app.config import get_settings
-from ask.tools import get_recall_stats_handler, search_recalls_handler
+from ask.function_tools import get_recall_stats_handler, search_recalls_handler
 from third_party.openfda.client import OpenFDAClient
+from utils.logger import get_logger, kv_message as kv
+
+logger = get_logger(__name__)
 
 
 def run_conversation_with_gemini(question: str) -> Dict[str, Any]:
@@ -47,12 +50,14 @@ def run_conversation_with_gemini(question: str) -> Dict[str, Any]:
     max_rounds = 5
 
     def call_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        logger.info(kv("tool_call", name=name, args=args))
         if name == "search_recalls":
             return search_recalls_handler(args, openfda_client)
         if name == "get_recall_stats":
             return get_recall_stats_handler(args, openfda_client)
         return {"error": f"Unknown tool: {name}"}
 
+    logger.info(kv("question", text=question))
     response = chat.send_message(question)
     for _ in range(max_rounds):
         parts = []
@@ -98,6 +103,7 @@ def run_conversation_with_gemini(question: str) -> Dict[str, Any]:
                     name = "search_recalls"
                     args = {"firm": firm_name, "limit": 50, "sort": "recall_initiation_date:desc"}
                 payload = call_tool(name, args)
+                logger.info(kv("tool_result", name=name, keys=list(payload.keys())))
                 last_tool_payload = payload
                 # Send function response back to the model
                 tool_msg = glm_content.Content(

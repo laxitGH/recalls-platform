@@ -9,8 +9,8 @@ class Settings(BaseSettings):
     port: int = 8000
     host: str = "0.0.0.0"
 
-    gemini_api_key: Optional[str] = None
-    gemini_model: str = "models/gemini-2.0-flash"
+    gemini_api_key: Optional[str] = None  # env: GEMINI_API_KEY
+    gemini_model: str = "models/gemini-2.0-flash"  # env: GEMINI_MODEL
 
 
 def get_settings() -> Settings:

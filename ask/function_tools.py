@@ -2,7 +2,10 @@ from typing import Any, Dict, List
 from datetime import datetime
 
 from third_party.openfda.client import OpenFDAClient
-from third_party.openfda.transforms import normalize_recall, group_year_counts
+from third_party.openfda.transforms import normalize_recall
+from utils.logger import get_logger, kv_message as kv
+
+logger = get_logger(__name__)
 
 
 def search_recalls_handler(args: Dict[str, Any], client: OpenFDAClient) -> Dict[str, Any]:
@@ -29,6 +32,7 @@ def search_recalls_handler(args: Dict[str, Any], client: OpenFDAClient) -> Dict[
     skip = int(args.get("skip", 0) or 0)
     sort = args.get("sort")
     fields = args.get("fields")  # optional projection
+    logger.info(kv("search_recalls start", query=query, firm=firm, classification=classification, limit=limit, skip=skip, sort=sort))
     data = client.search_enforcements(query=query, classification=classification, limit=limit, skip=skip, sort=sort)
     results = data.get("results", []) or []
     normalized = [normalize_recall(r) for r in results]
@@ -37,6 +41,7 @@ def search_recalls_handler(args: Dict[str, Any], client: OpenFDAClient) -> Dict[
         for item in normalized:
             filtered.append({k: v for k, v in item.items() if k in fields})
         normalized = filtered
+    logger.info(kv("search_recalls done", results=len(normalized)))
     return {"recalls": normalized, "meta": data.get("meta", {})}
 
 
@@ -53,6 +58,7 @@ def get_recall_stats_handler(args: Dict[str, Any], client: OpenFDAClient) -> Dic
     classification_filter = (args.get("classification") or "").strip()
 
     result: Dict[str, Any] = {}
+    logger.info(kv("get_recall_stats start", stats=stats_requested, classification=classification_filter))
 
     # firmTotal
     if include_firm_total:
@@ -69,6 +75,7 @@ def get_recall_stats_handler(args: Dict[str, Any], client: OpenFDAClient) -> Dic
             result["firm"] = firm
             # Early return if only firmTotal requested
             if set(stats_requested) == {"firmTotal"}:
+                logger.info(kv("get_recall_stats firmTotal only", firm=firm, total=total))
                 return result
         else:
             result["firmTotal"] = 0
@@ -137,6 +144,13 @@ def get_recall_stats_handler(args: Dict[str, Any], client: OpenFDAClient) -> Dic
             least_year = min(recalls_by_year.items(), key=lambda kv: kv[1])
             result["leastYear"] = {"year": least_year[0], "count": least_year[1]}
 
+    logger.info(kv("get_recall_stats done",
+                   include_total=include_total,
+                   include_class=include_class,
+                   include_top_firms=include_top_firms,
+                   include_bottom_firms=include_bottom_firms,
+                   include_by_year=include_by_year,
+                   include_firm_total=include_firm_total))
     return result
 
 

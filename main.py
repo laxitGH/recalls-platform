@@ -4,7 +4,7 @@ from app.config import get_settings
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from ask.router import router as ask_router
+from ask.routes import router as ask_router
 
 
 settings = get_settings()
