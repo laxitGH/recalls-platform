@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenFDA Drug Recall Assistant</title>
+  <style>
+    :root {
+      --bg: #0f172a;         /* slate-900 */
+      --card: #0b1220;       /* deep navy */
+      --muted: #cbd5e1;      /* slate-300 */
+      --text: #e2e8f0;       /* slate-200 */
+      --accent: #6366f1;     /* indigo-500 */
+      --accent-2: #22d3ee;   /* cyan-400 */
+      --success: #10b981;    /* emerald-500 */
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(1000px 600px at 10% -10%, rgba(34,211,238,0.15), rgba(34,211,238,0) 60%),
+        radial-gradient(800px 500px at 90% 0%, rgba(99,102,241,0.18), rgba(99,102,241,0) 65%),
+        linear-gradient(180deg, #0b1220, #0f172a);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      display: grid;
+      place-items: center;
+      padding: 40px 16px;
+    }
+    .container {
+      width: 100%;
+      max-width: 900px;
+    }
+    .hero {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .title {
+      font-size: 28px;
+      line-height: 1.2;
+      margin: 0 0 8px 0;
+      letter-spacing: -0.02em;
+    }
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(148,163,184,0.15);
+      border-radius: 16px;
+      padding: 16px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    form {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .input {
+      width: 100%;
+      padding: 14px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(148,163,184,0.2);
+      background: rgba(2,6,23,0.6);
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s ease;
+    }
+    .input:focus { border-color: rgba(99,102,241,0.6); }
+    .btn {
+      padding: 0 18px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform .08s ease, box-shadow .2s ease;
+      box-shadow: 0 6px 20px rgba(99,102,241,0.35);
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    .answer {
+      white-space: pre-wrap;
+      background: rgba(2,6,23,0.55);
+      border: 1px solid rgba(148,163,184,0.15);
+      padding: 16px;
+      border-radius: 12px;
+      color: var(--muted);
+    }
+    .list {
+      margin-top: 10px;
+      background: rgba(2,6,23,0.55);
+      border: 1px solid rgba(148,163,184,0.15);
+      border-radius: 12px;
+      padding: 12px;
+      color: var(--muted);
+    }
+    .list h3 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .list ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+    .list li { margin: 6px 0; }
+    .charts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+      margin-top: 12px;
+    }
+    .chart {
+      background: rgba(2,6,23,0.55);
+      border: 1px solid rgba(148,163,184,0.15);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .chart-title {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 2px 6px 8px 6px;
+    }
+    .chart-wrap {
+      position: relative;
+      height: 300px; /* fixed height prevents infinite growth */
+      width: 100%;
+    }
+    canvas { max-width: 100%; }
+    .footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+    .row { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    @media (min-width: 640px) {
+      .row { grid-template-columns: 1fr auto; }
+    }
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 6px;
+      vertical-align: -2px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script defer>
+    async function ask(e) {
+      e.preventDefault();
+      const q = document.getElementById('q');
+      const btn = document.getElementById('btn');
+      const out = document.getElementById('out');
+      const list = document.getElementById('list');
+      const charts = document.getElementById('charts');
+      const btnLabel = document.getElementById('btnLabel');
+      const btnSpinner = document.getElementById('btnSpinner');
+      btn.disabled = true;
+      btnSpinner.style.display = 'inline-block';
+      btnLabel.textContent = 'Thinking...';
+      out.textContent = '';
+      list.innerHTML = '';
+      charts.innerHTML = '';
+      try {
+        const res = await fetch('/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: q.value })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          out.textContent = (data && (data.detail || data.error)) || 'Something went wrong.';
+          btn.disabled = false;
+          btnSpinner.style.display = 'none';
+          btnLabel.textContent = 'Ask';
+          return;
+        }
+        out.textContent = data.answer || '';
+
+        // Optional lists and charts, based on returned data
+        if (data.data && typeof data.data.firmTotal === 'number') {
+          const heading = document.createElement('h3');
+          const firm = (data.data.firm || '').toString();
+          heading.textContent = `Total Recalls${firm ? ` — ${firm}` : ''}`;
+          const p = document.createElement('p');
+          p.textContent = String(data.data.firmTotal);
+          list.appendChild(heading);
+          list.appendChild(p);
+        }
+        try {
+          const recalls = (data && data.data && Array.isArray(data.data.recalls)) ? data.data.recalls : null;
+          if (recalls && recalls.length) {
+            const heading = document.createElement('h3');
+            heading.textContent = 'Matching Recalls';
+            const table = document.createElement('table');
+            table.style.width = '100%';
+            table.style.borderCollapse = 'collapse';
+            table.style.fontSize = '13px';
+            const thead = document.createElement('thead');
+            const trh = document.createElement('tr');
+            const headers = ['Date', 'Classification', 'Product', 'Firm', 'State', 'Status'];
+            headers.forEach(h => {
+              const th = document.createElement('th');
+              th.textContent = h;
+              th.style.textAlign = 'left';
+              th.style.padding = '8px';
+              th.style.borderBottom = '1px solid rgba(148,163,184,0.2)';
+              th.style.color = '#cbd5e1';
+              trh.appendChild(th);
+            });
+            thead.appendChild(trh);
+            const tbody = document.createElement('tbody');
+            const maxItems = Math.min(50, recalls.length);
+            for (let i = 0; i < maxItems; i++) {
+              const r = recalls[i] || {};
+              const tr = document.createElement('tr');
+              const cells = [
+                r.recallInitiationDate || '',
+                r.classification || '',
+                r.productName || '',
+                r.firmName || '',
+                r.state || '',
+                r.status || ''
+              ];
+              cells.forEach((c, idx) => {
+                const td = document.createElement('td');
+                td.textContent = String(c);
+                td.style.padding = '8px';
+                td.style.borderBottom = '1px solid rgba(148,163,184,0.12)';
+                td.style.verticalAlign = 'top';
+                td.style.wordBreak = 'break-word';
+                td.style.whiteSpace = 'normal';
+                if (idx === 2) td.style.maxWidth = '520px';
+                tr.appendChild(td);
+              });
+              tbody.appendChild(tr);
+            }
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            list.appendChild(heading);
+            list.appendChild(table);
+            // Ensure the list area is visible even if charts fail later
+            list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        } catch (e) {
+          console.warn('Recalls list render error:', e);
+        }
+        if (data.data && data.data.topFirms && Array.isArray(data.data.topFirms)) {
+          const ol = document.createElement('ul');
+          const heading = document.createElement('h3');
+          heading.textContent = 'Top Firms';
+          data.data.topFirms.forEach((t, i) => {
+            const li = document.createElement('li');
+            li.textContent = `${i + 1}. ${t.firm}: ${t.count}`;
+            ol.appendChild(li);
+          });
+          list.appendChild(heading);
+          list.appendChild(ol);
+        }
+        if (data.data && data.data.bottomFirms && Array.isArray(data.data.bottomFirms)) {
+          const ol2 = document.createElement('ul');
+          const heading2 = document.createElement('h3');
+          heading2.textContent = 'Firms with Fewest Recalls';
+          data.data.bottomFirms.forEach((t, i) => {
+            const li = document.createElement('li');
+            li.textContent = `${i + 1}. ${t.firm}: ${t.count}`;
+            ol2.appendChild(li);
+          });
+          list.appendChild(heading2);
+          list.appendChild(ol2);
+        }
+        // Charts render only when corresponding keys exist
+        try { if (data.data && data.data.recallsByClassification) {
+          const card1 = document.createElement('div');
+          card1.className = 'chart';
+          const t1 = document.createElement('div');
+          t1.className = 'chart-title';
+          t1.textContent = 'Recalls by Classification';
+          const wrap1 = document.createElement('div');
+          wrap1.className = 'chart-wrap';
+          const canvas1 = document.createElement('canvas');
+          wrap1.appendChild(canvas1);
+          card1.appendChild(t1);
+          card1.appendChild(wrap1);
+          charts.appendChild(card1);
+          const labels1 = Object.keys(data.data.recallsByClassification);
+          const values1 = Object.values(data.data.recallsByClassification);
+          new Chart(canvas1.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels: labels1,
+              datasets: [{ label: 'Recalls by Classification', data: values1, backgroundColor: '#3b82f6', borderRadius: 6, barPercentage: 0.6, categoryPercentage: 0.7 }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: '#cbd5e1', autoSkip: true, maxRotation: 20 }, grid: { color: 'rgba(148,163,184,0.1)' } },
+                y: { beginAtZero: true, ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(148,163,184,0.1)' } }
+              }
+            }
+          });
+        } } catch (e) { console.warn('Classification chart error:', e); }
+        try { if (data.data && data.data.topFirms) {
+          const card2 = document.createElement('div');
+          card2.className = 'chart';
+          const t2 = document.createElement('div');
+          t2.className = 'chart-title';
+          t2.textContent = 'Top Firms by Recall Count';
+          const wrap2 = document.createElement('div');
+          wrap2.className = 'chart-wrap';
+          const canvas2 = document.createElement('canvas');
+          wrap2.appendChild(canvas2);
+          card2.appendChild(t2);
+          card2.appendChild(wrap2);
+          charts.appendChild(card2);
+          const labels2 = data.data.topFirms.map(x => x.firm);
+          const values2 = data.data.topFirms.map(x => x.count);
+          new Chart(canvas2.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels: labels2,
+              datasets: [{ label: 'Top Firms (by recall count)', data: values2, backgroundColor: '#10b981', borderRadius: 6, barPercentage: 0.6, categoryPercentage: 0.8 }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              indexAxis: 'y',
+              scales: {
+                x: { beginAtZero: true, ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(148,163,184,0.1)' } },
+                y: {
+                  ticks: {
+                    color: '#cbd5e1',
+                    autoSkip: false,
+                    callback: function(val, i) {
+                      const label = (labels2[i] || '').toString();
+                      return label.length > 26 ? (label.slice(0, 26) + '…') : label;
+                    }
+                  },
+                  grid: { color: 'rgba(148,163,184,0.1)' }
+                }
+              }
+             }
+           });
+         } } catch (e) { console.warn('Top firms chart error:', e); }
+         try { if (data.data && data.data.recallsByYear) {
+          const card3 = document.createElement('div');
+          card3.className = 'chart';
+          const t3 = document.createElement('div');
+          t3.className = 'chart-title';
+          t3.textContent = 'Recalls by Year';
+          const wrap3 = document.createElement('div');
+          wrap3.className = 'chart-wrap';
+          const canvas3 = document.createElement('canvas');
+          wrap3.appendChild(canvas3);
+          card3.appendChild(t3);
+          card3.appendChild(wrap3);
+          charts.appendChild(card3);
+          const entries = Object.entries(data.data.recallsByYear || {});
+          entries.sort((a,b) => Number(a[0]) - Number(b[0]));
+          const labels3 = entries.map(x => x[0]);
+          const values3 = entries.map(x => x[1]);
+          new Chart(canvas3.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels: labels3,
+              datasets: [{ label: 'Recalls per Year', data: values3, backgroundColor: '#8b5cf6', borderRadius: 6, barPercentage: 0.6, categoryPercentage: 0.7 }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(148,163,184,0.1)' } },
+                y: { beginAtZero: true, ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(148,163,184,0.1)' } }
+              }
+             }
+           });
+         } } catch (e) { console.warn('Year chart error:', e); }
+      } catch (err) {
+        out.textContent = String(err);
+      } finally {
+        btn.disabled = false;
+        btnSpinner.style.display = 'none';
+        btnLabel.textContent = 'Ask';
+      }
+    }
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('f').addEventListener('submit', ask);
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <h1 class="title">OpenFDA Drug Recall Assistant</h1>
+      <p class="subtitle">Ask questions about FDA drug recalls. Live data. Clear answers.</p>
+    </div>
+    <div class="card">
+      <form id="f" class="row">
+        <input id="q" class="input" type="text" placeholder="e.g., Which firms have the most drug recalls?" />
+        <button id="btn" class="btn" type="submit">
+          <span id="btnSpinner" class="spinner" style="display:none;"></span>
+          <span id="btnLabel">Ask</span>
+        </button>
+      </form>
+      <div class="answer" id="out"></div>
+      <div class="list" id="list"></div>
+      <div class="charts" id="charts"></div>
+      <div class="footer">
+        Data from openFDA (Drug Enforcement API). Do not rely on this for medical decisions.
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+
+
