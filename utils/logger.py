@@ -55,9 +55,24 @@ def get_logger(name: str) -> logging.Logger:
 
 
 def kv_message(message: str, **fields: Any) -> str:
-    """Return message with appended JSON key-values for quick, readable context."""
+    """Return message with appended JSON key-values for quick, readable context.
+    Uses a permissive serializer so proto/RepeatedComposite and other custom objects won't crash logging.
+    """
     if not fields:
         return message
-    return f"{message} | {json.dumps(fields, ensure_ascii=False, sort_keys=True)}"
+    return f"{message} | {json.dumps(fields, ensure_ascii=False, sort_keys=True, default=_safe_default)}"
+
+
+def _safe_default(obj: Any) -> str:
+    try:
+        # Prefer object's dict-like view if available
+        if hasattr(obj, "to_dict"):
+            return obj.to_dict()  # type: ignore[return-value]
+        if isinstance(obj, (set,)):
+            return list(obj)  # type: ignore[return-value]
+        # Fallback to string representation
+        return str(obj)
+    except Exception:
+        return repr(obj)
 
 
